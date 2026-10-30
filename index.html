@@ -5,28 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Кыргызский Фольклор</title>
   <style>
-    * {
-      box-sizing: border-box;
+    /* Разрешаем нормальный скролл всей странице */
+    html, body {
+      width: 100%;
+      min-height: 100%;
       margin: 0;
       padding: 0;
+      background-color: #0f172a;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0f172a;
-      color: #f8fafc;
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 12px;
-      -webkit-overflow-scrolling: touch;
+      padding: 16px 12px 40px 12px;
     }
 
     header {
       width: 100%;
       max-width: 500px;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       text-align: center;
     }
 
@@ -69,7 +72,7 @@
     .grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
+      gap: 12px;
       width: 100%;
       max-width: 500px;
       margin-bottom: 20px;
@@ -104,6 +107,7 @@
       border-radius: 8px;
       overflow: hidden;
       margin-bottom: 8px;
+      pointer-events: none; /* Чтобы скролл шел сквозь картинку */
     }
 
     .card-img {
@@ -122,6 +126,7 @@
       line-height: 1.25;
       color: #e2e8f0;
       font-weight: 500;
+      pointer-events: none;
     }
 
     .actions {
@@ -310,13 +315,10 @@
           if (phase !== 'reorder') return;
 
           if (selectedIndex === null) {
-            // Выбираем первую карту
             selectedIndex = index;
           } else if (selectedIndex === index) {
-            // Отменяем выбор при повторном клике
             selectedIndex = null;
           } else {
-            // Меняем местами выбранную и текущую
             const temp = currentCards[selectedIndex];
             currentCards[selectedIndex] = currentCards[index];
             currentCards[index] = temp;
