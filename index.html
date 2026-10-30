@@ -3,9 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Кыргызский Фольклор</title>
+  <title>Кыргызский фольклор — Интерактивная игра</title>
   <style>
-    /* Разрешаем нормальный скролл всей странице */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     html, body {
       width: 100%;
       min-height: 100%;
@@ -39,6 +44,15 @@
       margin-bottom: 8px;
     }
 
+    .round-title {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+
     .status-bar {
       background: #1e293b;
       border-radius: 12px;
@@ -69,6 +83,28 @@
       background: #2563eb;
     }
 
+    /* Блок подсказки для 2-го раунда */
+    .hint-container {
+      width: 100%;
+      max-width: 500px;
+      background: #1e293b;
+      border: 2px dashed #fbbf24;
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .hint-label {
+      color: #fbbf24;
+      font-weight: bold;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -87,7 +123,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      min-height: 180px;
+      min-height: 170px;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
@@ -99,7 +135,7 @@
 
     .card-img-wrapper {
       width: 100%;
-      height: 100px;
+      height: 95px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -107,7 +143,7 @@
       border-radius: 8px;
       overflow: hidden;
       margin-bottom: 8px;
-      pointer-events: none; /* Чтобы скролл шел сквозь картинку */
+      pointer-events: none;
     }
 
     .card-img {
@@ -197,25 +233,32 @@
 <body>
 
   <header>
-    <h1>Кыргызский Фольклор</h1>
+    <div class="round-title" id="round-title">РАУНД 1: ПАМЯТЬ</div>
+    <h1>Кыргызский фольклор</h1>
     <div class="status-bar">
       <span class="phase-text" id="phase-text">Запомните порядок!</span>
       <div class="timer-badge memorize" id="timer">30</div>
     </div>
   </header>
 
+  <!-- Блок подсказки (появляется во 2-м раунде) -->
+  <div class="hint-container" id="hint-container" style="display: none;">
+    <div class="hint-label" id="hint-label">ВОПРОС 1: ПОДСКАЗКА</div>
+    <div id="hint-card-slot"></div>
+  </div>
+
   <main class="grid" id="grid"></main>
 
-  <div class="actions">
+  <div class="actions" id="actions-block">
     <button class="btn" id="action-btn">Запомнил! Перемешать сейчас</button>
   </div>
 
   <div class="modal" id="result-modal">
     <div class="modal-content">
-      <h2>Результат!</h2>
+      <h2 id="modal-title">Игра окончена!</h2>
       <div class="score-circle" id="score-text">0/8</div>
       <p id="result-desc" style="margin-bottom: 20px; color: #cbd5e1;"></p>
-      <button class="btn" onclick="resetGame()">Попробовать снова</button>
+      <button class="btn" id="modal-btn" onclick="resetGame()">Начать сначала</button>
     </div>
   </div>
 
@@ -231,29 +274,68 @@
       { id: 8, title: "Ур Токмок - палка, которая бьет владельца", image: "urtoqmoq.png", fallback: "🪄" }
     ];
 
+    // Вопросы для 2-го раунда (ассоциации)
+    const TRIVIA_QUESTIONS = [
+      {
+        hintId: 3, // Подсказка: Чалкуйрук
+        correctId: 5, // Ответ: Эр Төштүк
+        hintText: "💡 Подсказка: чей это верный конь?"
+      },
+      {
+        hintId: 2, // Подсказка: Бөрү
+        correctId: 7, // Ответ: Үркөр
+        hintText: "💡 Подсказка: с кем связана эта волчья ассоциация?"
+      },
+      {
+        hintId: 6, // Подсказка: Көөкөр
+        correctId: 4, // Ответ: Жайыл Дасторкон
+        hintText: "💡 Подсказка: что дополняет этот сосуд для кымыза?"
+      }
+    ];
+
     let currentCards = [...INITIAL_CARDS];
     let originalOrderIds = INITIAL_CARDS.map(c => c.id);
+    
+    let currentRound = 1; 
     let phase = 'memorize'; 
     let timeLeft = 30;
     let timerInterval = null;
     let selectedIndex = null;
+
+    let round1Score = 0;
+    let round2Score = 0;
+    let triviaIndex = 0;
 
     const gridEl = document.getElementById('grid');
     const timerEl = document.getElementById('timer');
     const phaseTextEl = document.getElementById('phase-text');
     const actionBtn = document.getElementById('action-btn');
     const modalEl = document.getElementById('result-modal');
+    const roundTitleEl = document.getElementById('round-title');
+    const hintContainerEl = document.getElementById('hint-container');
+    const hintLabelEl = document.getElementById('hint-label');
+    const hintCardSlotEl = document.getElementById('hint-card-slot');
+    const actionsBlockEl = document.getElementById('actions-block');
 
     function init() {
+      currentRound = 1;
       phase = 'memorize';
       timeLeft = 30;
       selectedIndex = null;
+      round1Score = 0;
+      round2Score = 0;
+      triviaIndex = 0;
       currentCards = [...INITIAL_CARDS];
+
       modalEl.classList.remove('show');
-      
+      hintContainerEl.style.display = 'none';
+      actionsBlockEl.style.display = 'block';
+
+      roundTitleEl.textContent = "РАУНД 1: ПАМЯТЬ";
       timerEl.textContent = timeLeft;
+      timerEl.style.display = 'block';
       timerEl.className = 'timer-badge memorize';
-      phaseTextEl.textContent = 'Запомните порядок!';
+      phaseTextEl.textContent = 'Запомните порядок карточек!';
       
       actionBtn.textContent = 'Запомнил! Перемешать сейчас';
       actionBtn.onclick = startReorderPhase;
@@ -273,7 +355,7 @@
           if (phase === 'memorize') {
             startReorderPhase();
           } else if (phase === 'reorder') {
-            finishGame();
+            finishRound1();
           }
         }
       }, 1000);
@@ -292,7 +374,7 @@
       timerEl.className = 'timer-badge';
       
       actionBtn.textContent = 'Готово! Проверить';
-      actionBtn.onclick = finishGame;
+      actionBtn.onclick = finishRound1;
 
       renderCards();
       startTimer();
@@ -312,19 +394,21 @@
         cardEl.className = `card ${selectedIndex === index ? 'selected' : ''}`;
         
         cardEl.onclick = () => {
-          if (phase !== 'reorder') return;
-
-          if (selectedIndex === null) {
-            selectedIndex = index;
-          } else if (selectedIndex === index) {
-            selectedIndex = null;
-          } else {
-            const temp = currentCards[selectedIndex];
-            currentCards[selectedIndex] = currentCards[index];
-            currentCards[index] = temp;
-            selectedIndex = null;
+          if (phase === 'reorder') {
+            if (selectedIndex === null) {
+              selectedIndex = index;
+            } else if (selectedIndex === index) {
+              selectedIndex = null;
+            } else {
+              const temp = currentCards[selectedIndex];
+              currentCards[selectedIndex] = currentCards[index];
+              currentCards[index] = temp;
+              selectedIndex = null;
+            }
+            renderCards();
+          } else if (phase === 'trivia') {
+            handleTriviaAnswer(card.id);
           }
-          renderCards();
         };
 
         cardEl.innerHTML = `
@@ -339,29 +423,106 @@
       });
     }
 
-    function finishGame() {
+    function finishRound1() {
       clearInterval(timerInterval);
-      phase = 'finished';
-
-      let correctCount = 0;
+      
+      round1Score = 0;
       currentCards.forEach((card, index) => {
         if (card.id === originalOrderIds[index]) {
-          correctCount++;
+          round1Score++;
         }
       });
 
-      document.getElementById('score-text').textContent = `${correctCount} / ${INITIAL_CARDS.length}`;
+      document.getElementById('modal-title').textContent = 'Раунд 1 завершен!';
+      document.getElementById('score-text').textContent = `${round1Score} / 8`;
+      document.getElementById('result-desc').textContent = 'Отлично! Переходим ко 2-му раунду (Ассоциации)';
       
-      let desc = '';
-      if (correctCount === INITIAL_CARDS.length) {
-        desc = 'Феноменальная память! Всё верно!';
-      } else if (correctCount >= 5) {
-        desc = 'Отличный результат!';
-      } else {
-        desc = 'Хорошая попытка!';
+      const modalBtn = document.getElementById('modal-btn');
+      modalBtn.textContent = 'Перейти к раунду 2 ➔';
+      modalBtn.onclick = startRound2;
+
+      modalEl.classList.add('show');
+    }
+
+    /* ================= РАУНД 2: АССОЦИАЦИИ ================= */
+
+    function startRound2() {
+      currentRound = 2;
+      phase = 'trivia';
+      triviaIndex = 0;
+      round2Score = 0;
+
+      modalEl.classList.remove('show');
+      roundTitleEl.textContent = "РАУНД 2: АССОЦИАЦИИ";
+      timerEl.style.display = 'none'; // Во 2-м раунде таймер не нужен
+      phaseTextEl.textContent = 'По подсказке выберите правильную карточку!';
+      actionsBlockEl.style.display = 'none';
+
+      showTriviaQuestion();
+    }
+
+    function showTriviaQuestion() {
+      if (triviaIndex >= TRIVIA_QUESTIONS.length) {
+        finishGameTotal();
+        return;
       }
-      
-      document.getElementById('result-desc').textContent = desc;
+
+      const q = TRIVIA_QUESTIONS[triviaIndex];
+      const hintCard = INITIAL_CARDS.find(c => c.id === q.hintId);
+
+      hintContainerEl.style.display = 'flex';
+      hintLabelEl.textContent = `ВОПРОС ${triviaIndex + 1} из 3`;
+
+      hintCardSlotEl.innerHTML = `
+        <div class="card" style="min-height: auto; width: 140px; cursor: default; border-color: #fbbf24;">
+          <div style="font-size: 0.75rem; color: #fbbf24; margin-bottom: 4px; font-weight: bold;">Подсказка:</div>
+          <div class="card-img-wrapper" style="height: 75px;">
+            <img src="${hintCard.image}" alt="${hintCard.title}" class="card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <div class="card-fallback" style="display:none;">${hintCard.fallback}</div>
+          </div>
+          <div class="card-title" style="font-size: 0.75rem;">${hintCard.title}</div>
+        </div>
+      `;
+
+      // Перемешиваем карточки вариантов для ответа
+      currentCards = [...INITIAL_CARDS];
+      shuffle(currentCards);
+      renderCards();
+    }
+
+    function handleTriviaAnswer(selectedCardId) {
+      const q = TRIVIA_QUESTIONS[triviaIndex];
+
+      if (selectedCardId === q.correctId) {
+        round2Score++;
+        alert("Правильно! 🎉");
+      } else {
+        const correctCard = INITIAL_CARDS.find(c => c.id === q.correctId);
+        alert(`Неверно. ❌\nПравильный ответ: ${correctCard.title}`);
+      }
+
+      triviaIndex++;
+      showTriviaQuestion();
+    }
+
+    function finishGameTotal() {
+      hintContainerEl.style.display = 'none';
+
+      const totalScore = round1Score + round2Score;
+      const maxTotal = 8 + TRIVIA_QUESTIONS.length; // 8 + 3 = 11
+
+      document.getElementById('modal-title').textContent = 'Игра полностью завершена! 🏆';
+      document.getElementById('score-text').textContent = `${totalScore} / ${maxTotal}`;
+      document.getElementById('result-desc').innerHTML = `
+        <strong>Раунд 1 (Память):</strong> ${round1Score} / 8<br>
+        <strong>Раунд 2 (Ассоциации):</strong> ${round2Score} / 3<br><br>
+        Спасибо за участие в презентации!
+      `;
+
+      const modalBtn = document.getElementById('modal-btn');
+      modalBtn.textContent = 'Начать заново';
+      modalBtn.onclick = resetGame;
+
       modalEl.classList.add('show');
     }
 
